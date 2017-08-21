@@ -1,7 +1,8 @@
 # About Ovirt
-
-oVirt is a community project from **Red Hat** .oVirt is a **virtual datacenter manager** that delivers powerful management of multiple virtual machines on multiple hosts.It is also the innovation engine for **RHEV**(Red Hat Enterprise Virtualization). Any new features that appear in RHEV appear in oVirt first.
-
+![ovirt logo](ovirt2.png)
+</br>
+  oVirt is a community project from **Red Hat** .oVirt is a **virtual datacenter manager** that delivers powerful management of multiple virtual machines on multiple hosts.It is also the innovation engine for **RHEV**(Red Hat Enterprise Virtualization). Any new features that appear in RHEV appear in oVirt first.
+![ovirt logo](ovirt1.png)
 oVirt Features include:
 
 * Manage multiple virtual machines via web browser
