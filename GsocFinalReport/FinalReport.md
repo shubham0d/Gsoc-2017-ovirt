@@ -21,6 +21,35 @@ oVirt Features include:
 * Built on KVM hypervisor
 * Open source
 
-## Backup Storage Domain
+## Work I have done
+I worked on adding feature for Backup Storage Domain.
+
+### Backup Storage Domain
 
 This feature will add another functionality layer to the oVirt Disaster Recovery solution. It will allow any data storage domain to use as a backup domain and hence will remove the limitations of export storage domain. Adding functionality of backup storage domain deprecate the use of export storage domain and in future may replace it.
+
+## Work Summary
+Until now, one of the solutions to backup VMs and Templates in oVirt was to use an export storage domain. Export storage domain is a dedicated storage domain which is used to store and restore VMs and Templates. The drawback of Export storage domain is its two stage process. Transferring a VM required first copying it into the export storage domain and then into other storage domain to start using them. Since in background transfer from one domain to other take place using normal copy or dd utility (in case of disks) this process take a large time for a complete transfer. Hence, for a better backup experience we decided to create a whole dedicated storage domain to be used only for backup which obviously will call as backup storage domain.
+
+## Current status
+Implemented
+
+## Work Progress
+
+### Wiki link
+To be updated soon
+
+### Phases for Implementation
+
+- [x] Phase 1 (under review): Add dal layer with new field -
+  * introducing new field 'backup' in table storage_domain_static
+  * Add field changes in fixtures.xml for dao tests
+  * Test class added for dao test
+- [x] Phase 2: Add command validations for configuring backup storage domain.
+- [x] Phase 3: Add REST command to update storage domain as backup - Introduce the ability to update the storage domain as backup through REST.
+
+### What code get merged
+All code submitted get merged.
+
+### What left to do
+There is nothing specific left to do. We are just thinking about adding a tool that can help user to convert their export storage domain into data storage domain in future so that we can get rid of export storage domain.
