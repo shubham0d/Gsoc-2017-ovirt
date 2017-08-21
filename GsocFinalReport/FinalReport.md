@@ -20,3 +20,7 @@ oVirt Features include:
 * Load balancing
 * Built on KVM hypervisor
 * Open source
+
+## Backup Storage Domain
+
+This feature will add another functionality layer to the oVirt Disaster Recovery solution. It will allow any data storage domain to use as a backup domain and hence will remove the limitations of export storage domain. Adding functionality of backup storage domain deprecate the use of export storage domain and in future may replace it.
