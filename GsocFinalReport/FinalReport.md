@@ -32,7 +32,7 @@ This feature will add another functionality layer to the oVirt Disaster Recovery
 Until now, one of the solutions to backup VMs and Templates in oVirt was to use an export storage domain. Export storage domain is a dedicated storage domain which is used to store and restore VMs and Templates. The drawback of Export storage domain is its two stage process. Transferring a VM required first copying it into the export storage domain and then into other storage domain to start using them. Since in background transfer from one domain to other take place using normal copy or dd utility (in case of disks) this process take a large time for a complete transfer. Hence, for a better backup experience we decided to create a whole dedicated storage domain to be used only for backup which obviously will call as backup storage domain.
 
 ## Current status
-Implemented
+All code has been Implemented
 
 ## Work Progress
 
@@ -60,7 +60,7 @@ To be updated soon
 All code submitted get merged.
 
 ### What left to do
-There is nothing specific left to do. We are just thinking about adding a tool that can help user to convert their export storage domain into data storage domain in future so that we can get rid of export storage domain.
+There is nothing specific left to do.
 
 ## Work links
 #### Wiki Pull request:
@@ -108,3 +108,9 @@ There is nothing specific left to do. We are just thinking about adding a tool t
   
  ###### You can also look at the patches diff directly here if the above link doesn't work: ![patch link](patches/)</br>
  ######  Or you can find all gerrit push (till now) here: ![gerrit link](https://gerrit.ovirt.org/#/q/owner:%22shubham+dubey+%253Csdubey504%2540gmail.com%253E%22)
+
+## Future Plan
+The feature we wanted to implement is totally complete and no furture work is required in that field.
+Few extra work that can be done in this feature relation are:
+* Adding a tool that can convert export storage domain into data domain.So that user that have export storage domain in their engine can convert them into data domain before we totally get rid of export storage domain.
+* This backup feature can be a good replacement for export storage domain, so if the community agree then we will remove export storage domain from ovirt.
