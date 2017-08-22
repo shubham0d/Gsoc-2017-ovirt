@@ -51,10 +51,53 @@ To be updated soon
   * Backup storage domain should not be elected as master storage domain.
   * User can not activate a disk reside on a backup storage domain and attached to a running VM.
   *  Added validation that Export and ISO storage domains cannot be backup storage domains.
-- [x] Phase 3: Add REST command to update storage domain as backup - Introduce the ability to update the storage domain as backup through REST.
+- [x] Phase 3: Add REST api request and GUI Webadmin implementation to update storage domain as backup.
+  * Introduce the ability to update the storage domain as backup through REST and web based GUI.
+  * Implemented GUI checkbox below wipe after delete for backup flag in import domain dialog and add storage domain dialog.
+  * REST request for setting backup flag on storage domain by passing backup true or false.This flag can be used while creating      a domain or importing a domain.
 
 ### What code get merged
 All code submitted get merged.
 
 ### What left to do
 There is nothing specific left to do. We are just thinking about adding a tool that can help user to convert their export storage domain into data storage domain in future so that we can get rid of export storage domain.
+
+#### DAL implementation:
+
+  Changes | Values
+  ---------|----------
+  status | merged
+  gerrit code link | https://gerrit.ovirt.org/#/c/77142/
+  
+#### Validations in Backend:
+
+  Changes | Values
+  ---------|----------
+  status | merged
+  gerrit code link | https://gerrit.ovirt.org/#/c/79033/
+  more info | [Backup Storage domain wiki](https://developers.google.com/open-source/gsoc/)
+
+#### Webadmin Implementation:
+
+  Changes | Values
+  ---------|----------
+  status | merged
+  gerrit code link | https://gerrit.ovirt.org/#/c/79035/
+
+#### Rest api Requests:
+
+  Changes | Values
+  ---------|----------
+  status | merged
+  gerrit code link1 | https://gerrit.ovirt.org/#/c/79034/
+  gerrit code link2 | https://gerrit.ovirt.org/#/c/79155/
+  
+#### Search option added:
+
+  Changes | Values
+  ---------|----------
+  status | yet to merge
+  gerrit code link | https://gerrit.ovirt.org/#/c/79451/
+  
+  You can also look at the patches diff directly here if the above link doesn't work: ![patch link](patches/)</br>
+   Or you can find all gerrit push (till now) here: ![gerrit link](https://gerrit.ovirt.org/#/q/owner:%22shubham+dubey+%253Csdubey504%2540gmail.com%253E%22)
