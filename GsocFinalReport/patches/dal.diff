@@ -1,0 +1,290 @@
+From 09087fce1fd479c0cd2f4c99f8dc8770bed7c357 Mon Sep 17 00:00:00 2001
+From: Shubham Dubey <sdubey504@gmail.com>
+Date: Tue, 23 May 2017 11:46:00 +0530
+Subject: [PATCH] core: backup flag added to storage domain static
+
+New boolean field is introduced to set the storage
+domain as backup data storage domain. If value is
+set to true then that domain will be used as backup domain.
+
+Change-Id: I1453b52f4330d0e5cb12d8fa08426fd68f3cd329
+Signed-off-by: Shubham Dubey <sdubey504@gmail.com>
+---
+
+diff --git a/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/businessentities/StorageDomain.java b/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/businessentities/StorageDomain.java
+index 80e274d..f409043 100644
+--- a/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/businessentities/StorageDomain.java
++++ b/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/businessentities/StorageDomain.java
+@@ -112,6 +112,14 @@
+         getStorageStaticData().setVgMetadataDevice(vgMetadataDevice);
+     }
+ 
++    public boolean isBackup() {
++        return getStorageStaticData().isBackup();
++    }
++
++    public void setBackup(boolean backup) {
++        getStorageStaticData().setBackup(backup);
++    }
++
+     @JsonIgnore
+     @Override
+     public String getName() {
+diff --git a/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/businessentities/StorageDomainStatic.java b/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/businessentities/StorageDomainStatic.java
+index fdd1132..d6a24ab 100644
+--- a/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/businessentities/StorageDomainStatic.java
++++ b/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/businessentities/StorageDomainStatic.java
+@@ -64,6 +64,8 @@
+ 
+     private Boolean discardAfterDelete;
+ 
++    private boolean backup;
++
+     @Min(value = 0, message = "VALIDATION_STORAGE_DOMAIN_WARNING_LOW_SPACE_INDICATOR_RANGE")
+     @Max(value = 100, message = "VALIDATION_STORAGE_DOMAIN_WARNING_LOW_SPACE_INDICATOR_RANGE")
+     private Integer warningLowSpaceIndicator;
+@@ -227,6 +229,14 @@
+         this.vgMetadataDevice = vgMetadataDevice;
+     }
+ 
++    public boolean isBackup() {
++        return backup;
++    }
++
++    public void setBackup(boolean backup) {
++        this.backup = backup;
++    }
++
+     @Override
+     public String getName() {
+         return getStorageName();
+@@ -250,7 +260,8 @@
+                 firstMetadataDevice,
+                 vgMetadataDevice,
+                 warningLowSpaceIndicator,
+-                criticalSpaceActionBlocker
++                criticalSpaceActionBlocker,
++                backup
+         );
+     }
+ 
+@@ -278,7 +289,8 @@
+                 && Objects.equals(vgMetadataDevice, other.vgMetadataDevice)
+                 && Objects.equals(description, other.description)
+                 && Objects.equals(warningLowSpaceIndicator, other.warningLowSpaceIndicator)
+-                && Objects.equals(criticalSpaceActionBlocker, other.criticalSpaceActionBlocker);
++                && Objects.equals(criticalSpaceActionBlocker, other.criticalSpaceActionBlocker)
++                && Objects.equals(backup, other.backup);
+     }
+ 
+     @Override
+diff --git a/backend/manager/modules/dal/src/main/java/org/ovirt/engine/core/dao/StorageDomainDaoImpl.java b/backend/manager/modules/dal/src/main/java/org/ovirt/engine/core/dao/StorageDomainDaoImpl.java
+index b71f2f4..afab0d4 100644
+--- a/backend/manager/modules/dal/src/main/java/org/ovirt/engine/core/dao/StorageDomainDaoImpl.java
++++ b/backend/manager/modules/dal/src/main/java/org/ovirt/engine/core/dao/StorageDomainDaoImpl.java
+@@ -181,6 +181,7 @@
+         entity.setWarningLowSpaceIndicator(rs.getInt("warning_low_space_indicator"));
+         entity.setCriticalSpaceActionBlocker(rs.getInt("critical_space_action_blocker"));
+         entity.setHostedEngineStorage(rs.getBoolean("is_hosted_engine_storage"));
++        entity.setBackup(rs.getBoolean("backup"));
+         return entity;
+     };
+ 
+diff --git a/backend/manager/modules/dal/src/main/java/org/ovirt/engine/core/dao/StorageDomainStaticDaoImpl.java b/backend/manager/modules/dal/src/main/java/org/ovirt/engine/core/dao/StorageDomainStaticDaoImpl.java
+index 657bedf..c61dc02 100644
+--- a/backend/manager/modules/dal/src/main/java/org/ovirt/engine/core/dao/StorageDomainStaticDaoImpl.java
++++ b/backend/manager/modules/dal/src/main/java/org/ovirt/engine/core/dao/StorageDomainStaticDaoImpl.java
+@@ -88,7 +88,8 @@
+                 .addValue("first_metadata_device", domain.getFirstMetadataDevice())
+                 .addValue("vg_metadata_device", domain.getVgMetadataDevice())
+                 .addValue("warning_low_space_indicator", domain.getWarningLowSpaceIndicator())
+-                .addValue("critical_space_action_blocker", domain.getCriticalSpaceActionBlocker());
++                .addValue("critical_space_action_blocker", domain.getCriticalSpaceActionBlocker())
++                .addValue("backup", domain.isBackup());
+     }
+ 
+     @Override
+@@ -113,6 +114,7 @@
+         entity.setVgMetadataDevice(rs.getString("vg_metadata_device"));
+         entity.setWarningLowSpaceIndicator((Integer) rs.getObject("warning_low_space_indicator"));
+         entity.setCriticalSpaceActionBlocker((Integer) rs.getObject("critical_space_action_blocker"));
++        entity.setBackup(rs.getBoolean("backup"));
+         return entity;
+     };
+ }
+diff --git a/backend/manager/modules/dal/src/test/java/org/ovirt/engine/core/dao/StorageDomainDaoTest.java b/backend/manager/modules/dal/src/test/java/org/ovirt/engine/core/dao/StorageDomainDaoTest.java
+index 5894e18..c9f3dcf 100644
+--- a/backend/manager/modules/dal/src/test/java/org/ovirt/engine/core/dao/StorageDomainDaoTest.java
++++ b/backend/manager/modules/dal/src/test/java/org/ovirt/engine/core/dao/StorageDomainDaoTest.java
+@@ -213,6 +213,7 @@
+                 result.getFirstMetadataDevice());
+         assertEquals("Wrong vg metadata device", FixturesTool.LUN_ID_OF_DOMAIN_VG_METADATA, result.getVgMetadataDevice());
+         assertEquals("Wrong shared status", StorageDomainSharedStatus.Active, result.getStorageDomainSharedStatus());
++        assertEquals("Wrong backup flag status", false, result.isBackup());
+     }
+ 
+     /**
+diff --git a/backend/manager/modules/dal/src/test/java/org/ovirt/engine/core/dao/StorageDomainStaticDaoTest.java b/backend/manager/modules/dal/src/test/java/org/ovirt/engine/core/dao/StorageDomainStaticDaoTest.java
+index 689d62a..efb1744 100644
+--- a/backend/manager/modules/dal/src/test/java/org/ovirt/engine/core/dao/StorageDomainStaticDaoTest.java
++++ b/backend/manager/modules/dal/src/test/java/org/ovirt/engine/core/dao/StorageDomainStaticDaoTest.java
+@@ -47,6 +47,7 @@
+         newStaticDomain.setCriticalSpaceActionBlocker(9);
+         newStaticDomain.setFirstMetadataDevice(FixturesTool.LUN_ID2);
+         newStaticDomain.setVgMetadataDevice(FixturesTool.LUN_ID2);
++        newStaticDomain.setBackup(false);
+     }
+ 
+     /**
+@@ -177,6 +178,7 @@
+         existingDomain.setCriticalSpaceActionBlocker(8);
+         existingDomain.setFirstMetadataDevice(FixturesTool.LUN_ID1);
+         existingDomain.setVgMetadataDevice(FixturesTool.LUN_ID1);
++        existingDomain.setBackup(true);
+         dao.update(existingDomain);
+ 
+         StorageDomainStatic after = dao.get(existingDomain.getId());
+diff --git a/backend/manager/modules/dal/src/test/resources/fixtures.xml b/backend/manager/modules/dal/src/test/resources/fixtures.xml
+index fb8a8f4..b7d1e31 100644
+--- a/backend/manager/modules/dal/src/test/resources/fixtures.xml
++++ b/backend/manager/modules/dal/src/test/resources/fixtures.xml
+@@ -96,18 +96,18 @@
+   <storage_pool id="386bffd1-e7ed-4b08-bce9-d7df10f8c9a2" name="rhel6.LOCALFS" description="" is_local="true" status="1" master_domain_version="1" spm_vds_id="afce7a39-8e8c-4819-ba9c-796d316592e7" compatibility_version="2.3" _create_date="2011-03-21 03:38:22" _update_date="2011-03-21 15:57:10"/>
+   <storage_pool id="d9220003-8ad8-41d2-8c9e-5ea30b2e88e7" name="Empty_Shared_Pool" description="A shared storage pool with no domains attached" is_local="false" status="0" master_domain_version="0" spm_vds_id="afce7a39-8e8c-4819-ba9c-796d316592e7" compatibility_version="3.4" _create_date="2014-04-24 12:00:00" _update_date="2011-04-24 12:00:00"/>
+ 
+-  <storage_domain_static id="72e3a666-89e1-4005-a7ca-f7548004a9aa" storage="0cc146e8-e5ed-482c-8814-270bc48c2982" storage_name="scale_sd4" storage_domain_type="2" storage_type="1" _create_date="2014-10-14 16:33:00" _update_date="2014-10-14 16:33:00" last_time_used_as_master="5" storage_description="description0" wipe_after_delete="true" warning_low_space_indicator="5" critical_space_action_blocker="10"/>
+-  <storage_domain_static id="72e3a666-89e1-4005-a7ca-f7548004a9ab" storage="G95OWd-Wvck-vftu-pMq9-9SAC-NF3E-ulDPsQ" storage_name="scale_sd5" storage_domain_type="0" storage_type="3" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="5" storage_description="description1" wipe_after_delete="false" warning_low_space_indicator="5" critical_space_action_blocker="10" first_metadata_device="DOMAIN_METADATA_LUN-1" vg_metadata_device="VG_DOMAIN_METADATA_LUN-1"/>
+-  <storage_domain_static id="72e3a666-89e1-4005-a7ca-f7548004a9ac" storage="fDMzhE-wx3s-zo3q-Qcxd-T0li-yoYU-QvVePz" storage_name="scale_sd6" storage_domain_type="0" storage_type="3" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="15" storage_description="description2" wipe_after_delete="true" warning_low_space_indicator="5" critical_space_action_blocker="10" first_metadata_device="DOMAIN_METADATA_LUN-2" vg_metadata_device="DOMAIN_METADATA_LUN-2"/>
+-  <storage_domain_static id="c2211b56-8869-41cd-84e1-78d7cb96f31d" storage="0cc146e8-e5ed-482c-8814-270bc48c297f" storage_name="nfs_master" storage_domain_type="0" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="0" storage_description="description3" wipe_after_delete="false" warning_low_space_indicator="6" critical_space_action_blocker="9"/>
+-  <storage_domain_static id="d9ede37f-e6c3-4bf9-a984-19174070aa31" storage="0cc146e8-e5ed-482c-8814-270bc48c2981" storage_name="nfs_master2" storage_domain_type="0" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="5" storage_description="description4" wipe_after_delete="true" warning_low_space_indicator="6" critical_space_action_blocker="9"/>
+-  <storage_domain_static id="d9ede37f-e6c3-4bf9-a984-19174070aa41" storage="0cc146e8-e5ed-482c-8814-270bc48c2983" storage_name="nfs_3" storage_domain_type="0" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="5" storage_description="description4" wipe_after_delete="false" warning_low_space_indicator="6" critical_space_action_blocker="9"/>
+-  <storage_domain_static id="17e7489d-d490-4681-a322-073ca19bd33d" storage="12bd6d9a-84e0-47af-85cd-91fcc038ce06" storage_name="nfs_iso" storage_domain_type="2" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="0" storage_description="description5" wipe_after_delete="true" warning_low_space_indicator="4" critical_space_action_blocker="8"/>
+-  <storage_domain_static id="d034f3b2-fb9c-414a-b1be-1e642cfe57ae" storage="ce955502-e8c7-4539-a260-c1d1fc00afe4" storage_name="nfs_Iso2" storage_domain_type="2" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="0" storage_description="description6" wipe_after_delete="true" warning_low_space_indicator="4" critical_space_action_blocker="8"/>
+-  <storage_domain_static id="d9ede37f-e6c3-4bf9-a984-19174070aa32" storage="c6d12efe-f0c5-4ce8-b755-21c7aac09c5c" storage_name="nfs_master3" storage_domain_type="0" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="7" storage_description="description7" wipe_after_delete="false" warning_low_space_indicator="4" critical_space_action_blocker="8"/>
+-  <storage_domain_static id="a7957057-b5de-47bb-b8e0-2f8dbd9e63d8" storage="c18d59a9-c218-4076-8cd4-e19b43565111" storage_name="iscsi_domain" storage_domain_type="1" storage_type="3" _create_date="2014-04-24 12:00:00" _update_date="2014-04-24 12:00:00" last_time_used_as_master="7" storage_description="ISCSI domain, part of &apos;rhel6.Mixed&apos; storage pool" wipe_after_delete="false" warning_low_space_indicator="4" critical_space_action_blocker="8"/>
+-  <storage_domain_static id="bee623f3-9174-4ffd-aa30-4fb0dc0aa2f5" storage="85422037-cdf4-4b98-9ae1-39588af0a7b4" storage_name="posix_domain" storage_domain_type="1" storage_type="6" _create_date="2014-04-24 12:00:00" _update_date="2014-04-24 12:00:00" last_time_used_as_master="7" storage_description="POSIX domain, part of &apos;rhel6.Mixed&apos; storage pool" wipe_after_delete="true" warning_low_space_indicator="4" critical_space_action_blocker="8"/>
+-  <storage_domain_static id="bee623f3-9174-4ffd-aa30-4fb0dc0aa2f6" storage="85422037-cdf4-4b98-9ae1-39588af0a7b5" storage_name="cinder_domain" storage_domain_type="4" storage_type="9" _create_date="2014-04-24 12:00:00" _update_date="2014-04-24 12:00:00" last_time_used_as_master="7" storage_description="Cinder domain" wipe_after_delete="false"/>
++  <storage_domain_static id="72e3a666-89e1-4005-a7ca-f7548004a9aa" storage="0cc146e8-e5ed-482c-8814-270bc48c2982" storage_name="scale_sd4" storage_domain_type="2" storage_type="1" _create_date="2014-10-14 16:33:00" _update_date="2014-10-14 16:33:00" last_time_used_as_master="5" storage_description="description0" wipe_after_delete="true" warning_low_space_indicator="5" critical_space_action_blocker="10" backup="false"/>
++  <storage_domain_static id="72e3a666-89e1-4005-a7ca-f7548004a9ab" storage="G95OWd-Wvck-vftu-pMq9-9SAC-NF3E-ulDPsQ" storage_name="scale_sd5" storage_domain_type="0" storage_type="3" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="5" storage_description="description1" wipe_after_delete="false" warning_low_space_indicator="5" critical_space_action_blocker="10" first_metadata_device="DOMAIN_METADATA_LUN-1" vg_metadata_device="VG_DOMAIN_METADATA_LUN-1" backup="false"/>
++  <storage_domain_static id="72e3a666-89e1-4005-a7ca-f7548004a9ac" storage="fDMzhE-wx3s-zo3q-Qcxd-T0li-yoYU-QvVePz" storage_name="scale_sd6" storage_domain_type="0" storage_type="3" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="15" storage_description="description2" wipe_after_delete="true" warning_low_space_indicator="5" critical_space_action_blocker="10" first_metadata_device="DOMAIN_METADATA_LUN-2" vg_metadata_device="DOMAIN_METADATA_LUN-2" backup="false"/>
++  <storage_domain_static id="c2211b56-8869-41cd-84e1-78d7cb96f31d" storage="0cc146e8-e5ed-482c-8814-270bc48c297f" storage_name="nfs_master" storage_domain_type="0" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="0" storage_description="description3" wipe_after_delete="false" warning_low_space_indicator="6" critical_space_action_blocker="9" backup="false"/>
++  <storage_domain_static id="d9ede37f-e6c3-4bf9-a984-19174070aa31" storage="0cc146e8-e5ed-482c-8814-270bc48c2981" storage_name="nfs_master2" storage_domain_type="0" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="5" storage_description="description4" wipe_after_delete="true" warning_low_space_indicator="6" critical_space_action_blocker="9" backup="false"/>
++  <storage_domain_static id="d9ede37f-e6c3-4bf9-a984-19174070aa41" storage="0cc146e8-e5ed-482c-8814-270bc48c2983" storage_name="nfs_3" storage_domain_type="0" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="5" storage_description="description4" wipe_after_delete="false" warning_low_space_indicator="6" critical_space_action_blocker="9" backup="true"/>
++  <storage_domain_static id="17e7489d-d490-4681-a322-073ca19bd33d" storage="12bd6d9a-84e0-47af-85cd-91fcc038ce06" storage_name="nfs_iso" storage_domain_type="2" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="0" storage_description="description5" wipe_after_delete="true" warning_low_space_indicator="4" critical_space_action_blocker="8" backup="false"/>
++  <storage_domain_static id="d034f3b2-fb9c-414a-b1be-1e642cfe57ae" storage="ce955502-e8c7-4539-a260-c1d1fc00afe4" storage_name="nfs_Iso2" storage_domain_type="2" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="0" storage_description="description6" wipe_after_delete="true" warning_low_space_indicator="4" critical_space_action_blocker="8" backup="false"/>
++  <storage_domain_static id="d9ede37f-e6c3-4bf9-a984-19174070aa32" storage="c6d12efe-f0c5-4ce8-b755-21c7aac09c5c" storage_name="nfs_master3" storage_domain_type="0" storage_type="1" _create_date="2010-11-23 10:47:55" _update_date="2010-11-23 10:48:10" last_time_used_as_master="7" storage_description="description7" wipe_after_delete="false" warning_low_space_indicator="4" critical_space_action_blocker="8" backup="false"/>
++  <storage_domain_static id="a7957057-b5de-47bb-b8e0-2f8dbd9e63d8" storage="c18d59a9-c218-4076-8cd4-e19b43565111" storage_name="iscsi_domain" storage_domain_type="1" storage_type="3" _create_date="2014-04-24 12:00:00" _update_date="2014-04-24 12:00:00" last_time_used_as_master="7" storage_description="ISCSI domain, part of &apos;rhel6.Mixed&apos; storage pool" wipe_after_delete="false" warning_low_space_indicator="4" critical_space_action_blocker="8" backup="true"/>
++  <storage_domain_static id="bee623f3-9174-4ffd-aa30-4fb0dc0aa2f5" storage="85422037-cdf4-4b98-9ae1-39588af0a7b4" storage_name="posix_domain" storage_domain_type="1" storage_type="6" _create_date="2014-04-24 12:00:00" _update_date="2014-04-24 12:00:00" last_time_used_as_master="7" storage_description="POSIX domain, part of &apos;rhel6.Mixed&apos; storage pool" wipe_after_delete="true" warning_low_space_indicator="4" critical_space_action_blocker="8" backup="true"/>
++  <storage_domain_static id="bee623f3-9174-4ffd-aa30-4fb0dc0aa2f6" storage="85422037-cdf4-4b98-9ae1-39588af0a7b5" storage_name="cinder_domain" storage_domain_type="4" storage_type="9" _create_date="2014-04-24 12:00:00" _update_date="2014-04-24 12:00:00" last_time_used_as_master="7" storage_description="Cinder domain" wipe_after_delete="false" backup="false"/>
+ 
+   <storage_domain_dynamic id="72e3a666-89e1-4005-a7ca-f7548004a9aa" available_disk_size="196" used_disk_size="3" external_status="0"/>
+   <storage_domain_dynamic id="72e3a666-89e1-4005-a7ca-f7548004a9ab" available_disk_size="196" used_disk_size="3" external_status="1"/>
+diff --git a/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/Cloner.java b/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/Cloner.java
+index 7902442..afb953f 100644
+--- a/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/Cloner.java
++++ b/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/Cloner.java
+@@ -404,6 +404,7 @@
+         obj.setDiscardAfterDelete(instance.getDiscardAfterDelete());
+         obj.setWarningLowSpaceIndicator(instance.getWarningLowSpaceIndicator());
+         obj.setCriticalSpaceActionBlocker(instance.getCriticalSpaceActionBlocker());
++        obj.setBackup(instance.isBackup());
+ 
+         return obj;
+     }
+diff --git a/packaging/dbscripts/create_views.sql b/packaging/dbscripts/create_views.sql
+index 06acebb..bc37997 100644
+--- a/packaging/dbscripts/create_views.sql
++++ b/packaging/dbscripts/create_views.sql
+@@ -713,6 +713,7 @@
+     storage_domain_static.discard_after_delete AS discard_after_delete,
+     storage_domain_static.first_metadata_device AS first_metadata_device,
+     storage_domain_static.vg_metadata_device AS vg_metadata_device,
++    storage_domain_static.backup AS backup,
+     COALESCE(storage_domain_shared_status.status, 0) AS storage_domain_shared_status,
+     storage_domain_static.recoverable AS recoverable,
+     domains_with_unregistered_entities_view.storage_domain_id IS NOT NULL AS contains_unregistered_entities,
+@@ -759,6 +760,7 @@
+     storage_domain_static.discard_after_delete AS discard_after_delete,
+     storage_domain_static.first_metadata_device AS first_metadata_device,
+     storage_domain_static.vg_metadata_device AS vg_metadata_device,
++    storage_domain_static.backup AS backup,
+     NULL AS storage_pool_id,
+     NULL AS storage_pool_name,
+     storage_domain_dynamic.available_disk_size AS available_disk_size,
+@@ -809,6 +811,7 @@
+     storage_domain_static.discard_after_delete AS discard_after_delete,
+     storage_domain_static.first_metadata_device AS first_metadata_device,
+     storage_domain_static.vg_metadata_device AS vg_metadata_device,
++    storage_domain_static.backup AS backup,
+     CASE
+         WHEN status_table.is_multi_domain
+             THEN NULL
+@@ -2435,6 +2438,7 @@
+     storage_domain_static.discard_after_delete AS discard_after_delete,
+     storage_domain_static.first_metadata_device AS first_metadata_device,
+     storage_domain_static.vg_metadata_device AS vg_metadata_device,
++    storage_domain_static.backup AS backup,
+     COALESCE(storage_domain_shared_status.status, 0) AS storage_domain_shared_status,
+     cluster.cluster_id,
+     vds_static.vds_id,
+diff --git a/packaging/dbscripts/storages_sp.sql b/packaging/dbscripts/storages_sp.sql
+index e2531d6..36fd753 100644
+--- a/packaging/dbscripts/storages_sp.sql
++++ b/packaging/dbscripts/storages_sp.sql
+@@ -491,7 +491,8 @@
+     v_first_metadata_device VARCHAR(100),
+     v_vg_metadata_device VARCHAR(100),
+     v_warning_low_space_indicator INT,
+-    v_critical_space_action_blocker INT
++    v_critical_space_action_blocker INT,
++    v_backup BOOLEAN
+     )
+ RETURNS VOID AS $PROCEDURE$
+ BEGIN
+@@ -510,7 +511,8 @@
+         first_metadata_device,
+         vg_metadata_device,
+         warning_low_space_indicator,
+-        critical_space_action_blocker
++        critical_space_action_blocker,
++        backup
+         )
+     VALUES (
+         v_id,
+@@ -527,7 +529,8 @@
+         v_first_metadata_device,
+         v_vg_metadata_device,
+         v_warning_low_space_indicator,
+-        v_critical_space_action_blocker
++        v_critical_space_action_blocker,
++        v_backup
+         );
+ END;$PROCEDURE$
+ LANGUAGE plpgsql;
+@@ -562,7 +565,8 @@
+     v_first_metadata_device VARCHAR(100),
+     v_vg_metadata_device VARCHAR(100),
+     v_warning_low_space_indicator INT,
+-    v_critical_space_action_blocker INT
++    v_critical_space_action_blocker INT,
++    v_backup BOOLEAN
+     )
+ RETURNS VOID
+     --The [storage_domain_static] table doesn't have a timestamp column. Optimistic concurrency logic cannot be generated
+@@ -583,7 +587,8 @@
+         storage_description = v_storage_description,
+         storage_comment = v_storage_comment,
+         warning_low_space_indicator = v_warning_low_space_indicator,
+-        critical_space_action_blocker = v_critical_space_action_blocker
++        critical_space_action_blocker = v_critical_space_action_blocker,
++        backup = v_backup
+     WHERE id = v_id;
+ END;$PROCEDURE$
+ LANGUAGE plpgsql;
+diff --git a/packaging/dbscripts/upgrade/04_02_0420_add_backup_flag.sql b/packaging/dbscripts/upgrade/04_02_0420_add_backup_flag.sql
+new file mode 100644
+index 0000000..505578e
+--- /dev/null
++++ b/packaging/dbscripts/upgrade/04_02_0420_add_backup_flag.sql
+@@ -0,0 +1 @@
++SELECT fn_db_add_column('storage_domain_static', 'backup', 'boolean not null default false');

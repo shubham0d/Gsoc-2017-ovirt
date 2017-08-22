@@ -41,11 +41,16 @@ To be updated soon
 
 ### Phases for Implementation
 
-- [x] Phase 1 (under review): Add dal layer with new field -
+- [x] Phase 1: Add dal layer with new field -
   * introducing new field 'backup' in table storage_domain_static
   * Add field changes in fixtures.xml for dao tests
   * Test class added for dao test
 - [x] Phase 2: Add command validations for configuring backup storage domain.
+  * VMs cannot run if one of its disk is in backup storage domain.
+  * Admin cannot move or copy disk of a running vm to backup storage domain.
+  * Backup storage domain should not be elected as master storage domain.
+  * User can not activate a disk reside on a backup storage domain and attached to a running VM.
+  *  Added validation that Export and ISO storage domains cannot be backup storage domains.
 - [x] Phase 3: Add REST command to update storage domain as backup - Introduce the ability to update the storage domain as backup through REST.
 
 ### What code get merged

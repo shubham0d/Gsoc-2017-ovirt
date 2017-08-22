@@ -1,0 +1,180 @@
+From 1fb14612919fa597fec84221acd406864381f276 Mon Sep 17 00:00:00 2001
+From: Shubham Dubey <sdubey504@gmail.com>
+Date: Wed, 05 Jul 2017 17:54:18 +0530
+Subject: [PATCH] webadmin: backup checkbox added.
+
+Implemented GUI checkbox below wipe after delete for backup flag
+in import domain dialog and add storage domain dialog.
+
+Change-Id: I631e0109f6fbdddef3099c72f4136250d4067a18
+Signed-off-by: Shubham Dubey <sdubey504@gmail.com>
+---
+
+diff --git a/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/config/ConfigValues.java b/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/config/ConfigValues.java
+index 20f0440..601a24f 100644
+--- a/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/config/ConfigValues.java
++++ b/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/config/ConfigValues.java
+@@ -2022,6 +2022,10 @@
+     @DefaultValueAttribute("30")
+     ExternalNetworkProviderTimeout,
+ 
++    @TypeConverterAttribute(Boolean.class)
++    @DefaultValueAttribute("true")
++    BackupSupported,
++
+     /**
+      * Timeout in seconds for establishment of connections with external network providers. This
+      * should be quite small, a few seconds at most, as it the TCP handshake with
+diff --git a/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/models/storage/StorageListModel.java b/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/models/storage/StorageListModel.java
+index 485e2ff..76a2399 100644
+--- a/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/models/storage/StorageListModel.java
++++ b/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/models/storage/StorageListModel.java
+@@ -1034,6 +1034,7 @@
+         storageDomainStatic.setDiscardAfterDelete(model.getDiscardAfterDelete().getEntity());
+         storageDomainStatic.setWarningLowSpaceIndicator(model.getWarningLowSpaceIndicator().getEntity());
+         storageDomainStatic.setCriticalSpaceActionBlocker(model.getCriticalSpaceActionBlocker().getEntity());
++        storageDomainStatic.setBackup(model.getBackup().getEntity());
+     }
+ 
+     private void savePosixStorage(TaskContext context) {
+diff --git a/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/models/storage/StorageModel.java b/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/models/storage/StorageModel.java
+index 0c99923..c195697 100644
+--- a/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/models/storage/StorageModel.java
++++ b/frontend/webadmin/modules/uicommonweb/src/main/java/org/ovirt/engine/ui/uicommonweb/models/storage/StorageModel.java
+@@ -247,6 +247,16 @@
+         this.discardAfterDelete = discardAfterDelete;
+     }
+ 
++    public EntityModel<Boolean> backup;
++
++    public EntityModel<Boolean> getBackup() {
++        return backup;
++    }
++
++    public void setBackup(EntityModel<Boolean> backup) {
++        this.backup = backup;
++    }
++
+     public StorageModel(StorageModelBehavior behavior) {
+         this.behavior = behavior;
+         this.behavior.setModel(this);
+@@ -276,6 +286,8 @@
+         setWipeAfterDelete(new EntityModel<>(false));
+         setDiscardAfterDelete(new EntityModel<>(false));
+         getDiscardAfterDelete().getEntityChangedEvent().addListener(this);
++        setBackup(new EntityModel<>(false));
++        getBackup().setIsAvailable(false);
+ 
+         localFSPath = (String) AsyncDataProvider.getInstance().getConfigValuePreConverted(ConfigurationValues.RhevhLocalFSPath);
+     }
+@@ -342,6 +354,7 @@
+         }
+         updateWipeAfterDelete();
+         updateDiscardAfterDelete();
++        updateBackup();
+     }
+ 
+     protected void storageItemsChanged() {
+@@ -649,6 +662,31 @@
+         }
+     }
+ 
++    private void updateBackup() {
++        if (getCurrentStorageItem().getRole() == StorageDomainType.ISO
++                || getCurrentStorageItem().getRole() == StorageDomainType.ImportExport) {
++                    getBackup().setIsAvailable(false);
++                    getBackup().setEntity(false);
++                    return;
++        }
++        boolean backupSupported = (Boolean) AsyncDataProvider.getInstance().getConfigValuePreConverted(
++                ConfigValues.BackupSupported,
++                getDataCenter().getSelectedItem().getCompatibilityVersion().toString());
++
++        getBackup().setIsAvailable(backupSupported);
++        if (getBackup().getIsAvailable()) {
++            if (isNewStorage()) {
++                getBackup().setEntity(false);
++            }
++
++            else {
++                getBackup().setEntity(getStorage().isBackup());
++            }
++
++        }
++
++    }
++
+     public boolean validate() {
+         validateListItems(getHost());
+         validateListItems(getAvailableStorageDomainTypeItems());
+@@ -678,7 +716,8 @@
+                 && getComment().getIsValid()
+                 && getWarningLowSpaceIndicator().getIsValid()
+                 && getCriticalSpaceActionBlocker().getIsValid()
+-                && getDiscardAfterDelete().getIsValid();
++                && getDiscardAfterDelete().getIsValid()
++                && getBackup().getIsValid();
+     }
+ 
+     private void validateDiscardAfterDelete() {
+diff --git a/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/ApplicationConstants.java b/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/ApplicationConstants.java
+index e5f7282..87a33fb 100644
+--- a/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/ApplicationConstants.java
++++ b/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/ApplicationConstants.java
+@@ -3265,5 +3265,6 @@
+ 
+     String clusterPopupResiliencePolicyInfo();
+ 
++    String backup();
+ }
+ 
+diff --git a/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/section/main/view/popup/storage/StoragePopupView.java b/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/section/main/view/popup/storage/StoragePopupView.java
+index 0aca1a6..b583b64 100644
+--- a/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/section/main/view/popup/storage/StoragePopupView.java
++++ b/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/section/main/view/popup/storage/StoragePopupView.java
+@@ -131,6 +131,11 @@
+     EntityModelCheckBoxEditor wipeAfterDeleteEditor;
+ 
+     @UiField (provided = true)
++    @Path(value = "backup.entity")
++    @WithElementId("backup")
++    EntityModelCheckBoxEditor backup;
++
++    @UiField (provided = true)
+     @Path(value = "discardAfterDelete.entity")
+     @WithElementId("discardAfterDelete")
+     EntityModelCheckBoxEditor discardAfterDeleteEditor;
+@@ -201,6 +206,7 @@
+ 
+         activateDomainEditor = new EntityModelCheckBoxEditor(Align.RIGHT);
+         wipeAfterDeleteEditor = new EntityModelCheckBoxEditor(Align.RIGHT);
++        backup = new EntityModelCheckBoxEditor(Align.RIGHT);
+         discardAfterDeleteEditor = new EntityModelCheckBoxEditor(Align.RIGHT);
+     }
+ 
+diff --git a/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/section/main/view/popup/storage/StoragePopupView.ui.xml b/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/section/main/view/popup/storage/StoragePopupView.ui.xml
+index f170ad8..0a2fc5b 100644
+--- a/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/section/main/view/popup/storage/StoragePopupView.ui.xml
++++ b/frontend/webadmin/modules/webadmin/src/main/java/org/ovirt/engine/ui/webadmin/section/main/view/popup/storage/StoragePopupView.ui.xml
+@@ -110,6 +110,9 @@
+                                     <ge:EntityModelCheckBoxEditor ui:field="wipeAfterDeleteEditor" label="{constants.wipeAfterDelete}" usePatternFly="true" labelColSize="SM_6" widgetColSize="SM_6" />
+                                 </b:Row>
+                                 <b:Row>
++                                  <ge:EntityModelCheckBoxEditor ui:field="backup" label="{constants.backup}" usePatternFly="true" labelColSize="SM_6" widgetColSize="SM_6" />
++                                </b:Row>
++                                <b:Row>
+                                     <ge:EntityModelCheckBoxEditor ui:field="discardAfterDeleteEditor" label="{constants.discardAfterDelete}" usePatternFly="true" labelColSize="SM_6" widgetColSize="SM_6"/>
+                                 </b:Row>
+                                 <b:Row>
+diff --git a/frontend/webadmin/modules/webadmin/src/main/resources/org/ovirt/engine/ui/webadmin/ApplicationConstants.properties b/frontend/webadmin/modules/webadmin/src/main/resources/org/ovirt/engine/ui/webadmin/ApplicationConstants.properties
+index 5dd5301..3aff1fc 100644
+--- a/frontend/webadmin/modules/webadmin/src/main/resources/org/ovirt/engine/ui/webadmin/ApplicationConstants.properties
++++ b/frontend/webadmin/modules/webadmin/src/main/resources/org/ovirt/engine/ui/webadmin/ApplicationConstants.properties
+@@ -104,6 +104,7 @@
+ availableHostDevices=Available Host Devices
+ availableStorageGeneral=Available
+ averageNetworkQoSPopup=Average
++backup=Backup
+ ballooningLabelTitle=Memory Balloon
+ blockSizeBrickAdvancedLabel=Block Size (Bytes)
+ bondInMode4HasNoPartnerMac=Bond is in link aggregation mode (mode 4) but no partner mac has been reported for it.

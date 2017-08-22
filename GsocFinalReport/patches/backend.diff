@@ -1,0 +1,520 @@
+From 1842bccd5fdffcbde75bec13b79b84d0672e8ef2 Mon Sep 17 00:00:00 2001
+From: Shubham Dubey <sdubey504@gmail.com>
+Date: Wed, 05 Jul 2017 17:43:21 +0530
+Subject: [PATCH] backend: Backup feature configured for storage domain.
+
+This patch propose a backend support for backup storage domain.
+Backup storage domain should keep the disks' data unchanged, therefore
+running VMs with disks reside on the storage domain is forbidden.
+To apply that restriction several validation were added:
+1. VMs cannot run if one of its disk is in backup storage domain.
+2. Admin cannot move or copy disk of a running vm to backup storage domain.
+3. Backup storage domain should not be elected as master storage domain.
+4. User can not activate a disk reside on a backup storage domain and attached to a running VM.
+5. Added validation that Export and ISO storage domains cannot be backup storage domains.
+
+For more information about the feature see the following wiki link:
+https://github.com/oVirt/ovirt-site/pull/1003
+
+Change-Id: Ib76657e7082d07cb991c960c33ca2cff0800d4c9
+Signed-off-by: Shubham Dubey <sdubey504@gmail.com>
+---
+
+diff --git a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/RunVmCommand.java b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/RunVmCommand.java
+index 5fc01ef..e5d63b8 100644
+--- a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/RunVmCommand.java
++++ b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/RunVmCommand.java
+@@ -61,6 +61,8 @@
+ import org.ovirt.engine.core.common.businessentities.network.VmNic;
+ import org.ovirt.engine.core.common.businessentities.network.VnicProfile;
+ import org.ovirt.engine.core.common.businessentities.storage.Disk;
++import org.ovirt.engine.core.common.businessentities.storage.DiskImage;
++import org.ovirt.engine.core.common.businessentities.storage.DiskStorageType;
+ import org.ovirt.engine.core.common.businessentities.storage.ImageFileType;
+ import org.ovirt.engine.core.common.businessentities.storage.RepoImage;
+ import org.ovirt.engine.core.common.config.Config;
+@@ -83,6 +85,8 @@
+ import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogDirector;
+ import org.ovirt.engine.core.dal.job.ExecutionMessageDirector;
+ import org.ovirt.engine.core.dao.SnapshotDao;
++import org.ovirt.engine.core.dao.StorageDomainDao;
++import org.ovirt.engine.core.dao.StorageDomainStaticDao;
+ import org.ovirt.engine.core.dao.VmDeviceDao;
+ import org.ovirt.engine.core.dao.VmDynamicDao;
+ import org.ovirt.engine.core.dao.VmPoolDao;
+@@ -137,6 +141,10 @@
+     private VmDynamicDao vmDynamicDao;
+     @Inject
+     private ProviderProxyFactory providerProxyFactory;
++    @Inject
++    private StorageDomainStaticDao storageDomainStaticDao;
++    @Inject
++    private StorageDomainDao storageDomainDao;
+ 
+     @Inject
+     private NetworkHelper networkHelper;
+@@ -1009,6 +1017,10 @@
+             return failValidation(EngineMessage.ACTION_TYPE_FAILED_RNG_SOURCE_NOT_SUPPORTED);
+         }
+ 
++        if (!checkDisksNotInBackupStorage()) {
++            return failValidation(EngineMessage.ACTION_TYPE_FAILED_VM_DISKS_ON_BACKUP_STORAGE);
++        }
++
+         boolean isWindowsOs = osRepository.isWindows(getVm().getVmOsId());
+ 
+         boolean isCloudInitEnabled = (!getVm().isInitialized() && getVm().getVmInit() != null && !isWindowsOs) ||
+@@ -1086,6 +1098,22 @@
+ 
+     }
+ 
++    protected boolean checkDisksNotInBackupStorage() {
++        Disk disk =
++                getVm().getDiskMap()
++                        .values()
++                        .stream()
++                        .filter(vmDisk -> vmDisk.getDiskStorageType() == DiskStorageType.IMAGE &&
++                                storageDomainStaticDao.get(((DiskImage) vmDisk).getStorageIds().get(0)).isBackup())
++                        .findFirst()
++                        .orElse(null);
++        if (disk != null) {
++            return false;
++        }
++        return true;
++
++    }
++
+     @Override
+     protected List<Class<?>> getValidationGroups() {
+         addValidationGroup(StartEntity.class);
+diff --git a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/disk/HotPlugDiskToVmCommand.java b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/disk/HotPlugDiskToVmCommand.java
+index 83f5aed..63b4240 100644
+--- a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/disk/HotPlugDiskToVmCommand.java
++++ b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/disk/HotPlugDiskToVmCommand.java
+@@ -115,7 +115,8 @@
+         StorageDomain storageDomain = storageDomainDao.getForStoragePool(
+                 diskImage.getStorageIds().get(0), diskImage.getStoragePoolId());
+         StorageDomainValidator storageDomainValidator = getStorageDomainValidator(storageDomain);
+-        return validate(storageDomainValidator.isDomainExistAndActive());
++        return validate(storageDomainValidator.isDomainExistAndActive()) &&
++                validate(storageDomainValidator.isBackupDomain());
+     }
+ 
+     protected StorageDomainValidator getStorageDomainValidator(StorageDomain storageDomain) {
+diff --git a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/AddStorageDomainCommand.java b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/AddStorageDomainCommand.java
+index 412af5b..c0a4fc6 100644
+--- a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/AddStorageDomainCommand.java
++++ b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/AddStorageDomainCommand.java
+@@ -193,6 +193,12 @@
+ 
+             return failValidation(EngineMessage.ACTION_TYPE_FAILED_DOMAIN_TYPE_CAN_BE_CREATED_ONLY_ON_SPECIFIC_STORAGE_DOMAINS);
+         }
++
++        if (getStorageDomain().getStorageDomainType().isIsoOrImportExportDomain()
++                && getStorageDomain().getStorageStaticData().isBackup()) {
++            return failValidation(EngineMessage.ACTION_TYPE_FAILED_DOMAIN_TYPE_DOES_NOT_SUPPORT_BACKUP);
++        }
++
+         if (getStorageDomain().getStorageDomainType() == StorageDomainType.Master) {
+             return failValidation(EngineMessage.ACTION_TYPE_FAILED_STORAGE_DOMAIN_TYPE_ILLEGAL);
+         }
+diff --git a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/StorageDomainCommandBase.java b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/StorageDomainCommandBase.java
+index eb47db3f..fc7580b 100644
+--- a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/StorageDomainCommandBase.java
++++ b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/StorageDomainCommandBase.java
+@@ -304,7 +304,9 @@
+      * is set to True, an Inactive domain will be returned in case that no domain in Active/Unknown status was found.
+      * @return an elected master domain or null
+      */
+-    protected StorageDomain electNewMaster(boolean duringReconstruct, boolean selectInactiveWhenNoActiveUnknownDomains, boolean canChooseCurrentMasterAsNewMaster) {
++    protected StorageDomain electNewMaster(boolean duringReconstruct,
++            boolean selectInactiveWhenNoActiveUnknownDomains,
++            boolean canChooseCurrentMasterAsNewMaster) {
+         if (getStoragePool() == null) {
+             log.warn("Cannot elect new master: storage pool not found");
+             return null;
+@@ -331,8 +333,11 @@
+             if ((storageDomain == null || (duringReconstruct || !dbStorageDomain.getId()
+                     .equals(storageDomain.getId())))
+                     && ((dbStorageDomain.getStorageDomainType() == StorageDomainType.Data)
+-                    ||
+-                    (canChooseCurrentMasterAsNewMaster && dbStorageDomain.getStorageDomainType() == StorageDomainType.Master))) {
++                            &&
++                            !dbStorageDomain.isBackup()
++                            ||
++                            (canChooseCurrentMasterAsNewMaster
++                                    && dbStorageDomain.getStorageDomainType() == StorageDomainType.Master))) {
+                 if (dbStorageDomain.getStatus() == StorageDomainStatus.Active
+                         || dbStorageDomain.getStatus() == StorageDomainStatus.Unknown) {
+                     newMaster = dbStorageDomain;
+diff --git a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/UpdateStorageDomainCommand.java b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/UpdateStorageDomainCommand.java
+index b5b295c..a937234 100644
+--- a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/UpdateStorageDomainCommand.java
++++ b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/domain/UpdateStorageDomainCommand.java
+@@ -69,6 +69,7 @@
+         props.remove("discardAfterDelete");
+         props.remove("warningLowSpaceIndicator");
+         props.remove("criticalSpaceActionBlocker");
++        props.remove("backup");
+         if (!props.isEmpty()) {
+             log.warn("There was an attempt to update the following fields although they are not allowed to be updated: {}",
+                     StringUtils.join(props, ","));
+diff --git a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/lsm/LiveMigrateVmDisksCommand.java b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/lsm/LiveMigrateVmDisksCommand.java
+index 49b4451..9b977c6 100644
+--- a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/lsm/LiveMigrateVmDisksCommand.java
++++ b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/storage/lsm/LiveMigrateVmDisksCommand.java
+@@ -357,7 +357,8 @@
+                     && isTemplateInDestStorageDomain(parameters.getImageId(), parameters.getTargetStorageDomainId())
+                     && validateDestStorage(getStorageDomainById(parameters.getTargetStorageDomainId(), getStoragePoolId()))
+                     && isSameSourceAndDest(parameters)
+-                    && validatePassDiscardSupportedOnDestinationStorageDomain(parameters));
++                    && validatePassDiscardSupportedOnDestinationStorageDomain(parameters)
++                    && isDiskInBackupDomain(getStorageDomainById(parameters.getTargetStorageDomainId(), getStoragePoolId())));
+ 
+             if (!getReturnValue().isValid()) {
+                 return false;
+@@ -490,6 +491,14 @@
+         return true;
+     }
+ 
++    protected boolean isDiskInBackupDomain(StorageDomain destDomain) {
++        if (destDomain.isBackup()) {
++            return failValidation(
++                    EngineMessage.ACTION_TYPE_FAILED_RUNNING_VM_DISK_CANNOT_COPY_OR_MOVE_TO_BACKUP_DOMAIN);
++        }
++        return true;
++    }
++
+     @Override
+     public void endWithFailure() {
+         if (getParameters().getStage() == LiveMigrateStage.CREATE_SNAPSHOT) {
+diff --git a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/validator/storage/StorageDomainValidator.java b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/validator/storage/StorageDomainValidator.java
+index f267dad..63f4f19 100644
+--- a/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/validator/storage/StorageDomainValidator.java
++++ b/backend/manager/modules/bll/src/main/java/org/ovirt/engine/core/bll/validator/storage/StorageDomainValidator.java
+@@ -47,6 +47,13 @@
+         return ValidationResult.VALID;
+     }
+ 
++    public ValidationResult isBackupDomain() {
++        if (storageDomain.isBackup()) {
++            return new ValidationResult(EngineMessage.ACTION_TYPE_FAILED_VM_DISKS_ON_BACKUP_STORAGE);
++        }
++        return ValidationResult.VALID;
++    }
++
+     public ValidationResult isDomainExistAndActive() {
+         ValidationResult domainExistValidation = isDomainExist();
+         if (!ValidationResult.VALID.equals(domainExistValidation)) {
+diff --git a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/RunVmCommandTest.java b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/RunVmCommandTest.java
+index d54dae7..58bf147 100644
+--- a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/RunVmCommandTest.java
++++ b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/RunVmCommandTest.java
+@@ -2,8 +2,10 @@
+ 
+ import static org.hamcrest.core.Is.is;
+ import static org.junit.Assert.assertEquals;
++import static org.junit.Assert.assertFalse;
+ import static org.junit.Assert.assertNull;
+ import static org.junit.Assert.assertThat;
++import static org.junit.Assert.assertTrue;
+ import static org.mockito.ArgumentMatchers.any;
+ import static org.mockito.ArgumentMatchers.anyBoolean;
+ import static org.mockito.ArgumentMatchers.anyInt;
+@@ -15,6 +17,7 @@
+ import static org.mockito.Mockito.mock;
+ import static org.mockito.Mockito.when;
+ 
++import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Collections;
+ import java.util.HashSet;
+@@ -40,6 +43,8 @@
+ import org.ovirt.engine.core.common.businessentities.Cluster;
+ import org.ovirt.engine.core.common.businessentities.IVdsAsyncCommand;
+ import org.ovirt.engine.core.common.businessentities.Snapshot.SnapshotStatus;
++import org.ovirt.engine.core.common.businessentities.StorageDomain;
++import org.ovirt.engine.core.common.businessentities.StorageDomainStatic;
+ import org.ovirt.engine.core.common.businessentities.StoragePool;
+ import org.ovirt.engine.core.common.businessentities.VM;
+ import org.ovirt.engine.core.common.businessentities.VMStatus;
+@@ -60,6 +65,7 @@
+ import org.ovirt.engine.core.compat.Guid;
+ import org.ovirt.engine.core.compat.Version;
+ import org.ovirt.engine.core.dao.SnapshotDao;
++import org.ovirt.engine.core.dao.StorageDomainStaticDao;
+ import org.ovirt.engine.core.dao.VmDao;
+ import org.ovirt.engine.core.dao.VmDeviceDao;
+ import org.ovirt.engine.core.utils.MockConfigRule;
+@@ -100,6 +106,9 @@
+ 
+     @Mock
+     private SnapshotsValidator snapshotsValidator;
++
++    @Mock
++    private StorageDomainStaticDao storageDomainStaticDao;
+ 
+     @Spy
+     @InjectMocks
+@@ -331,6 +340,7 @@
+         command.setStoragePool(new StoragePool());
+         doReturn(true).when(command).checkRngDeviceClusterCompatibility();
+         doReturn(true).when(command).checkPayload(any(VmPayload.class));
++        doReturn(true).when(command).checkDisksNotInBackupStorage();
+         command.setCluster(new Cluster());
+         ValidateTestUtils.runAndAssertValidateSuccess(command);
+     }
+@@ -519,4 +529,57 @@
+         assertEquals(AuditLogType.USER_INITIATED_RUN_VM, command.getAuditLogTypeValue());
+     }
+ 
++    private StorageDomainStatic backupStorageDomain(boolean isBackup) {
++        StorageDomain mockStorage = new StorageDomain();
++        mockStorage.setBackup(isBackup);
++        return mockStorage.getStorageStaticData();
++    }
++
++    private Guid initDiskImage(VM vm) {
++        DiskImage image = new DiskImage();
++        Guid storageDomainId = Guid.newGuid();
++        image.setId(Guid.newGuid());
++        image.setStorageIds(new ArrayList<>(Collections.singletonList(storageDomainId)));
++        vm.getDiskMap().put(image.getId(), image);
++        return storageDomainId;
++    }
++
++    @Test
++    public void testFailForCheckDisksNotInBackupStorage() {
++        final VM vm = new VM();
++        command.setVm(vm);
++        when(vmDao.get(command.getParameters().getVmId())).thenReturn(vm);
++        command.setCluster(new Cluster());
++        Guid storageDomainId = initDiskImage(vm);
++        when(storageDomainStaticDao.get(storageDomainId)).thenReturn(backupStorageDomain(true));
++        assertFalse("checkDisksNotInBackupStorage() fails to run because one or more disk is in backup domain",
++                command.checkDisksNotInBackupStorage());
++    }
++
++    @Test
++    public void testSuccceedForCheckDisksNotInBackupStorage() {
++        final VM vm = new VM();
++        command.setVm(vm);
++        when(vmDao.get(command.getParameters().getVmId())).thenReturn(vm);
++        command.setCluster(new Cluster());
++        Guid storageDomainId = initDiskImage(vm);
++        when(storageDomainStaticDao.get(storageDomainId)).thenReturn(backupStorageDomain(false));
++        assertTrue(
++                "checkDisksNotInBackupStorage() succeed to run since there are no disks which are on a backup storage domain",
++                command.checkDisksNotInBackupStorage());
++    }
++
++    @Test
++    public void testFailWithMultipleDisksWhichOneInBackupStorage() {
++        final VM vm = new VM();
++        command.setVm(vm);
++        when(vmDao.get(command.getParameters().getVmId())).thenReturn(vm);
++        command.setCluster(new Cluster());
++        Guid storageDomainId1 = initDiskImage(vm);
++        when(storageDomainStaticDao.get(storageDomainId1)).thenReturn(backupStorageDomain(false));
++        Guid storageDomainId2 = initDiskImage(vm);
++        when(storageDomainStaticDao.get(storageDomainId2)).thenReturn(backupStorageDomain(true));
++        assertFalse("checkDisksNotInBackupStorage() fails to run because one or more disk is in backup domain",
++                command.checkDisksNotInBackupStorage());
++    }
+ }
+diff --git a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/disk/HotPlugDiskToVmCommandTest.java b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/disk/HotPlugDiskToVmCommandTest.java
+index 8a53c14..0ccb681 100644
+--- a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/disk/HotPlugDiskToVmCommandTest.java
++++ b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/disk/HotPlugDiskToVmCommandTest.java
+@@ -194,6 +194,18 @@
+                 EngineMessage.ACTION_TYPE_FAILED_PASS_DISCARD_NOT_SUPPORTED_BY_DISK_INTERFACE);
+     }
+ 
++    @Test
++    public void validateBackupStorageDomain() {
++        mockVmStatusUp();
++        mockInterfaceList();
++        createVirtIODisk();
++        initStorageDomain();
++        doReturn(new ValidationResult(EngineMessage.ACTION_TYPE_FAILED_VM_DISKS_ON_BACKUP_STORAGE))
++                .when(storageDomainValidator).isBackupDomain();
++        ValidateTestUtils.runAndAssertValidateFailure(command,
++                EngineMessage.ACTION_TYPE_FAILED_VM_DISKS_ON_BACKUP_STORAGE);
++    }
++
+     private void initStorageDomain() {
+         StorageDomain storageDomain = new StorageDomain();
+         storageDomain.setId(storageDomainId);
+diff --git a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/disk/MoveOrCopyDiskCommandTest.java b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/disk/MoveOrCopyDiskCommandTest.java
+index b492198..bcfea00 100644
+--- a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/disk/MoveOrCopyDiskCommandTest.java
++++ b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/disk/MoveOrCopyDiskCommandTest.java
+@@ -157,6 +157,18 @@
+     }
+ 
+     @Test
++    public void validateDiskInBackupDomainForDownVM() {
++        initializeCommand(new DiskImage(), VmEntityType.VM);
++        initSrcStorageDomain();
++        StorageDomain destDomain = new StorageDomain();
++        destDomain.setStorageType(StorageType.NFS);
++        destDomain.setStatus(StorageDomainStatus.Active);
++        destDomain.setBackup(true);
++        doReturn(destDomain).when(command).getStorageDomain();
++        ValidateTestUtils.runAndAssertValidateSuccess(command);
++    }
++
++    @Test
+     public void validateDiskIsOvfStore() {
+         testMoveOrCopyForContentTypeFails(DiskContentType.OVF_STORE);
+     }
+diff --git a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/domain/AddStorageDomainCommonTest.java b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/domain/AddStorageDomainCommonTest.java
+index 46b9967..0cd7256 100644
+--- a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/domain/AddStorageDomainCommonTest.java
++++ b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/domain/AddStorageDomainCommonTest.java
+@@ -209,4 +209,20 @@
+         ValidateTestUtils.runAndAssertValidateFailure
+                 (cmd, EngineMessage.ACTION_TYPE_FAILED_STORAGE_CONNECTION_BELONGS_TO_SEVERAL_STORAGE_DOMAINS);
+     }
++
++    @Test
++    public void validateFailsUnsupportedIsoBackupDomain() {
++        sd.setStorageDomainType(StorageDomainType.ISO);
++        sd.setBackup(true);
++        ValidateTestUtils.runAndAssertValidateFailure(cmd,
++                EngineMessage.ACTION_TYPE_FAILED_DOMAIN_TYPE_DOES_NOT_SUPPORT_BACKUP);
++    }
++
++    @Test
++    public void validateFailsUnsupportedImportExportBackupDomain() {
++        sd.setStorageDomainType(StorageDomainType.ImportExport);
++        sd.setBackup(true);
++        ValidateTestUtils.runAndAssertValidateFailure(cmd,
++                EngineMessage.ACTION_TYPE_FAILED_DOMAIN_TYPE_DOES_NOT_SUPPORT_BACKUP);
++    }
+ }
+diff --git a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/domain/StorageDomainCommandBaseTest.java b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/domain/StorageDomainCommandBaseTest.java
+index f742f13..ef51496 100644
+--- a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/domain/StorageDomainCommandBaseTest.java
++++ b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/domain/StorageDomainCommandBaseTest.java
+@@ -181,6 +181,12 @@
+     }
+ 
+     @Test
++    public void shouldNotElectBackupStorageDomain() {
++        prepareStorageDomainForElection(StorageDomainStatus.Active, HE_STORAGE_DOMAIN_NAME, true);
++        assertNull(cmd.electNewMaster());
++    }
++
++    @Test
+     public void shouldElectActiveSharedDataDomain() {
+         final StorageDomain domain =
+                 prepareSharedStorageDomainForElection(StorageDomainStatus.Active);
+diff --git a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/lsm/LiveMigrateVmDisksCommandTest.java b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/lsm/LiveMigrateVmDisksCommandTest.java
+index b68d925..e1e8d0a 100644
+--- a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/lsm/LiveMigrateVmDisksCommandTest.java
++++ b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/storage/lsm/LiveMigrateVmDisksCommandTest.java
+@@ -304,6 +304,19 @@
+                         Guid.newGuid(), Guid.newGuid(), Guid.newGuid())));
+     }
+ 
++    @Test
++    public void validateDiskInBackupDomainForUpVM() {
++        createParameters();
++        initDiskImage(diskImageGroupId, diskImageId);
++        initVm(VMStatus.Up, Guid.newGuid(), diskImageGroupId);
++        StorageDomain destStorageDomain = initStorageDomain(dstStorageId);
++        destStorageDomain.setStatus(StorageDomainStatus.Active);
++        destStorageDomain.setStorageType(StorageType.NFS);
++        destStorageDomain.setBackup(true);
++        ValidateTestUtils.runAndAssertValidateFailure(command,
++                EngineMessage.ACTION_TYPE_FAILED_RUNNING_VM_DISK_CANNOT_COPY_OR_MOVE_TO_BACKUP_DOMAIN);
++    }
++
+     /** Initialize Entities */
+ 
+     private void initVm(VMStatus vmStatus, Guid runOnVds, Guid diskImageId) {
+diff --git a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/validator/storage/StorageDomainValidatorTest.java b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/validator/storage/StorageDomainValidatorTest.java
+index 675e463..01b0315 100644
+--- a/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/validator/storage/StorageDomainValidatorTest.java
++++ b/backend/manager/modules/bll/src/test/java/org/ovirt/engine/core/bll/validator/storage/StorageDomainValidatorTest.java
+@@ -66,6 +66,20 @@
+     }
+ 
+     @Test
++    public void testIsBackupDomain() {
++        domain.setBackup(false);
++        assertThat("Backup domain is not backup, should be valid.", validator.isBackupDomain(), isValid());
++    }
++
++    @Test
++    public void testInvalidIsBackupDomain() {
++        domain.setBackup(true);
++        assertThat("Backup domain is backup, should be invalid.",
++                validator.isBackupDomain(),
++                failsWith(EngineMessage.ACTION_TYPE_FAILED_VM_DISKS_ON_BACKUP_STORAGE));
++    }
++
++    @Test
+     public void testIsDomainExistAndActiveDomainNotUp() {
+         domain.setStatus(StorageDomainStatus.Inactive);
+         assertThat("Wrong failure for inactive domain",
+diff --git a/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/errors/EngineMessage.java b/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/errors/EngineMessage.java
+index 71c3229..994c90a 100644
+--- a/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/errors/EngineMessage.java
++++ b/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/errors/EngineMessage.java
+@@ -251,6 +251,9 @@
+     ACTION_TYPE_FAILED_DISCARD_AFTER_DELETE_NOT_SUPPORTED_BY_DC_VERSION(ErrorType.NOT_SUPPORTED),
+     ACTION_TYPE_FAILED_DISCARD_AFTER_DELETE_NOT_SUPPORTED_BY_UNDERLYING_STORAGE(ErrorType.NOT_SUPPORTED),
+     ACTION_TYPE_FAILED_DISCARD_AFTER_DELETE_SUPPORTED_ONLY_BY_BLOCK_DOMAINS(ErrorType.NOT_SUPPORTED),
++    ACTION_TYPE_FAILED_DOMAIN_TYPE_DOES_NOT_SUPPORT_BACKUP(ErrorType.NOT_SUPPORTED),
++    ACTION_TYPE_FAILED_VM_DISKS_ON_BACKUP_STORAGE(ErrorType.NOT_SUPPORTED),
++    ACTION_TYPE_FAILED_RUNNING_VM_DISK_CANNOT_COPY_OR_MOVE_TO_BACKUP_DOMAIN(ErrorType.NOT_SUPPORTED),
+     ACTION_TYPE_FAILED_DISK_ALREADY_ATTACHED(ErrorType.CONFLICT),
+     ACTION_TYPE_FAILED_NOT_SHAREABLE_DISK_ALREADY_ATTACHED(ErrorType.CONFLICT),
+     ACTION_TYPE_FAILED_DISK_ALREADY_DETACHED(ErrorType.CONFLICT),
+diff --git a/frontend/webadmin/modules/frontend/src/main/java/org/ovirt/engine/ui/frontend/AppErrors.java b/frontend/webadmin/modules/frontend/src/main/java/org/ovirt/engine/ui/frontend/AppErrors.java
+index 031ca0b..687e88d 100644
+--- a/frontend/webadmin/modules/frontend/src/main/java/org/ovirt/engine/ui/frontend/AppErrors.java
++++ b/frontend/webadmin/modules/frontend/src/main/java/org/ovirt/engine/ui/frontend/AppErrors.java
+@@ -49,6 +49,12 @@
+ 
+     String ACTION_TYPE_FAILED_MAX_MEMORY_CANNOT_EXCEED_PLATFORM_LIMIT();
+ 
++    String ACTION_TYPE_FAILED_VM_DISKS_ON_BACKUP_STORAGE();
++
++    String ACTION_TYPE_FAILED_DOMAIN_TYPE_DOES_NOT_SUPPORT_BACKUP();
++
++    String ACTION_TYPE_FAILED_RUNNING_VM_DISK_CANNOT_COPY_OR_MOVE_TO_BACKUP_DOMAIN();
++
+     String VM_TEMPLATE_IS_LOCKED();
+ 
+     String VM_TEMPLATE_IMAGE_IS_LOCKED();
+diff --git a/frontend/webadmin/modules/frontend/src/main/resources/org/ovirt/engine/ui/frontend/AppErrors.properties b/frontend/webadmin/modules/frontend/src/main/resources/org/ovirt/engine/ui/frontend/AppErrors.properties
+index d0b6a69..7874ef7 100644
+--- a/frontend/webadmin/modules/frontend/src/main/resources/org/ovirt/engine/ui/frontend/AppErrors.properties
++++ b/frontend/webadmin/modules/frontend/src/main/resources/org/ovirt/engine/ui/frontend/AppErrors.properties
+@@ -116,6 +116,7 @@
+ ACTION_TYPE_FAILED_DISK_ALREADY_ATTACHED=Cannot ${action} ${type}. The disk is already attached to VM.
+ ACTION_TYPE_FAILED_DISK_ALREADY_DETACHED=Cannot ${action} ${type}. The disk is already detached from VM.
+ ACTION_TYPE_FAILED_DISK_BOOT_IN_USE=Cannot ${action} ${type}. Disk ${DiskName} in VM ${VmName} is already marked as boot.
++ACTION_TYPE_FAILED_DOMAIN_TYPE_DOES_NOT_SUPPORT_BACKUP=Cannot ${action} ${type}. ISO and Export storage domains does not support backup property.
+ ACTION_TYPE_FAILED_AMEND_NOT_SUPPORTED_BY_DC_VERSION=Cannot ${action} ${type}. Amend operation is not supported by data center version ${dataCenterVersion}.
+ ACTION_TYPE_FAILED_QCOW_COMPAT_DOES_NOT_MATCH_DC_VERSION=Cannot ${action} ${type}. QCOW2 compat version is not supported for Data Center version.
+ ACTION_TYPE_FAILED_PASS_DISCARD_NOT_SUPPORTED_BY_DC_VERSION=Cannot ${action} ${type}. Enable discard is not supported by data center version ${dataCenterVersion}.
+@@ -448,6 +449,7 @@
+ ACTION_TYPE_FAILED_RNG_SOURCE_NOT_SUPPORTED=Cannot ${action} ${type}. Random Number Generator device is not supported in cluster.
+ ACTION_TYPE_FAILED_ROLE_IS_READ_ONLY=Cannot ${action} ${type}. The Role is Read-Only.
+ ACTION_TYPE_FAILED_ROLE_NETWORK_HAS_NO_BOOT_PROTOCOL=Cannot ${action} ${type}. Role (migration/display/gluster) network '${ACTION_TYPE_FAILED_ROLE_NETWORK_HAS_NO_BOOT_PROTOCOL_ENTITY}' has no boot protocol assigned.
++ACTION_TYPE_FAILED_RUNNING_VM_DISK_CANNOT_COPY_OR_MOVE_TO_BACKUP_DOMAIN=Cannot ${action} ${type}. Cannot move disk of a running vm to a backup storage domain.
+ ACTION_TYPE_FAILED_SERVER_STATUS_NOT_UP=Cannot ${action} ${type}. The server ${VdsName} is not UP.
+ ACTION_TYPE_FAILED_SETTING_DEFAULT_MAC_POOL_IS_NOT_SUPPORTED=Cannot ${action} ${type}. Setting default ${type} is not supported.
+ ACTION_TYPE_FAILED_SETUP_NETWORKS_OR_REFRESH_IN_PROGRESS=Cannot ${action} ${type}. Another Setup Networks or Host Refresh process in progress on the host. Please try later.
+@@ -556,6 +558,7 @@
+ ACTION_TYPE_FAILED_VM_CANNOT_IMPORT_VM_ARCHITECTURE_NOT_SUPPORTED_BY_CLUSTER=Cannot ${action} ${type}. The selected cluster doesn't support VM architecture
+ ACTION_TYPE_FAILED_VM_CANNOT_IMPORT_VM_WITH_NOT_SUPPORTED_ARCHITECTURE=Cannot ${action} ${type}. The selected VM has undefined architecture
+ ACTION_TYPE_FAILED_VM_CLUSTER_DIFFERENT_ARCHITECTURES=Cannot ${action} ${type}. The VM and the destination cluster architectures do not match.
++ACTION_TYPE_FAILED_VM_DISKS_ON_BACKUP_STORAGE=Cannot ${action} ${type}. The VM contains disks which are stored on backup storage domain.
+ ACTION_TYPE_FAILED_VM_DISK_SNAPSHOT_IS_ATTACHED_TO_ANOTHER_VM=Cannot ${action} ${type}. The following VM's disks snapshots are attached to other VMs (Disk Alias/Snapshot Description/VM attached to)\:\n\n ${disksInfo} \n\nPlease detach them from those VMs and try again.
+ ACTION_TYPE_FAILED_VM_DISK_SNAPSHOT_IS_PLUGGED_TO_ANOTHER_VM=Cannot ${action} ${type}. The following VM's disks snapshots are plugged to other VMs (Disk Alias/Snapshot Description/VM attached to)\:\n\n ${disksInfo} \n\nPlease deactivate/detach them from those VMs and try again.
+ ACTION_TYPE_FAILED_VM_DURING_EXPORT=Cannot ${action} ${type}\: VM is being exported now. Please try again in a few minutes.

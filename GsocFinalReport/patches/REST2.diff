@@ -1,0 +1,81 @@
+From b8cff2337ab8f2906e760a81f152fd0182accf4c Mon Sep 17 00:00:00 2001
+From: Shubham Dubey <sdubey504@gmail.com>
+Date: Sat, 08 Jul 2017 01:02:52 +0530
+Subject: [PATCH] Added backup attribute.
+
+Backup attribute will be used while creating or importing a
+data storage domain.
+This patch is the part of feature, adding and configuring backup storage
+ domain in ovirt-engine.The backend and GUI part is already been pushed
+for review.You can visit them at below links.
+
+dal implementation: https://gerrit.ovirt.org/77142
+backend: https://gerrit.ovirt.org/79033
+other REST change:https://gerrit.ovirt.org/79034
+webadmin:https://gerrit.ovirt.org/79035
+
+wiki pull request:https://github.com/oVirt/ovirt-site/pull/1003
+
+Change-Id: I42e56b78639dbfb1800cd8df420fcf758878a063
+Signed-off-by: Shubham Dubey <sdubey504@gmail.com>
+---
+
+diff --git a/src/main/java/services/AttachedStorageDomainsService.java b/src/main/java/services/AttachedStorageDomainsService.java
+index 993f5d2..8e89b32 100644
+--- a/src/main/java/services/AttachedStorageDomainsService.java
++++ b/src/main/java/services/AttachedStorageDomainsService.java
+@@ -24,6 +24,7 @@
+ import types.StorageDomain;
+ 
+ import static org.ovirt.api.metamodel.language.ApiLanguage.mandatory;
++import static org.ovirt.api.metamodel.language.ApiLanguage.optional;
+ import static org.ovirt.api.metamodel.language.ApiLanguage.or;
+ 
+ /**
+@@ -49,6 +50,7 @@
+         @InputDetail
+         default void inputDetail() {
+             or(mandatory(storageDomain().id()), mandatory(storageDomain().name()));
++            optional(storageDomain().backup());
+         }
+     }
+ 
+diff --git a/src/main/java/services/StorageDomainsService.java b/src/main/java/services/StorageDomainsService.java
+index 0c0fa21..3eb3051 100644
+--- a/src/main/java/services/StorageDomainsService.java
++++ b/src/main/java/services/StorageDomainsService.java
+@@ -127,6 +127,7 @@
+             optional(storageDomain().comment());
+             optional(storageDomain().criticalSpaceActionBlocker());
+             optional(storageDomain().warningLowSpaceIndicator());
++            optional(storageDomain().backup());
+         }
+ 
+         /**
+diff --git a/src/main/java/types/StorageDomain.java b/src/main/java/types/StorageDomain.java
+index f9ac8c6..005df18 100644
+--- a/src/main/java/types/StorageDomain.java
++++ b/src/main/java/types/StorageDomain.java
+@@ -172,6 +172,22 @@
+     @Link DataCenter dataCenter();
+ 
+     /**
++     * This attribute indicates whether a data storage domain is used as backup
++     * domain or not. If the domain is set to backup then it will be used
++     * to store virtual machines and templates for disaster recovery purposes in the
++     * same way we use export storage domain. This attribute is only available
++     * with data storage domain and not with ISO domain or export storage domain.
++     * User can use this functionality while creating a data storage domain
++     * or importing a data storage domain.
++     *
++     * @author Shubham Dubey <sdubey504@gmail.com>
++     * @date 7 Jul 2017
++     * @status added
++     * @since 4.2
++     */
++    Boolean backup();
++
++    /**
+      * A set of links to the data centers that the storage domain is attached to.
+      *
+      * @author Tahlia Richardson <trichard@redhat.com>

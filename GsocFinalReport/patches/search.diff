@@ -1,0 +1,58 @@
+From aa3d70d4a61fa6df540d6fceedde42f1a8eb7bc3 Mon Sep 17 00:00:00 2001
+From: Shubham Dubey <sdubey504@gmail.com>
+Date: Sun, 16 Jul 2017 16:30:18 +0530
+Subject: [PATCH] search: Search storage domain having backup feature on
+
+This patch adds the ability to search for Storage Domains
+ by their backup value.
+
+Change-Id: Ia61b5abd88e643e411fca77872fe2f9a36419f21
+Signed-off-by: Shubham Dubey <sdubey504@gmail.com>
+---
+
+diff --git a/backend/manager/modules/searchbackend/src/main/java/org/ovirt/engine/core/searchbackend/StorageDomainFieldAutoCompleter.java b/backend/manager/modules/searchbackend/src/main/java/org/ovirt/engine/core/searchbackend/StorageDomainFieldAutoCompleter.java
+index f4c4fc1..0e12974 100644
+--- a/backend/manager/modules/searchbackend/src/main/java/org/ovirt/engine/core/searchbackend/StorageDomainFieldAutoCompleter.java
++++ b/backend/manager/modules/searchbackend/src/main/java/org/ovirt/engine/core/searchbackend/StorageDomainFieldAutoCompleter.java
+@@ -20,6 +20,7 @@
+     public static final String WIPE_AFTER_DELETE = "WIPE_AFTER_DELETE";
+     public static final String LOW_SPACE_THRESHOLD = "LOW_SPACE_THRESHOLD (%)";
+     public static final String CRITICAL_SPACE_THRESHOLD = "CRITICAL_SPACE_THRESHOLD (GB)";
++    public static final String BACKUP = "BACKUP";
+ 
+     public StorageDomainFieldAutoCompleter() {
+         // Building the basic vervs Dict
+@@ -37,6 +38,7 @@
+         verbs.add(WIPE_AFTER_DELETE);
+         verbs.add(LOW_SPACE_THRESHOLD);
+         verbs.add(CRITICAL_SPACE_THRESHOLD);
++        verbs.add(BACKUP);
+ 
+         // Building the autoCompletion Dict
+         buildCompletions();
+@@ -55,6 +57,7 @@
+         getTypeDictionary().put(WIPE_AFTER_DELETE, Boolean.class);
+         getTypeDictionary().put(LOW_SPACE_THRESHOLD, Integer.class);
+         getTypeDictionary().put(CRITICAL_SPACE_THRESHOLD, Integer.class);
++        getTypeDictionary().put(BACKUP, Boolean.class);
+ 
+         // building the ColumnName Dict
+         columnNameDict.put(NAME, "storage_name");
+@@ -71,6 +74,7 @@
+         columnNameDict.put(WIPE_AFTER_DELETE, "wipe_after_delete");
+         columnNameDict.put(LOW_SPACE_THRESHOLD, "warning_low_space_indicator");
+         columnNameDict.put(CRITICAL_SPACE_THRESHOLD, "critical_space_action_blocker");
++        columnNameDict.put(BACKUP, "backup");
+ 
+         // Building the validation dict
+         buildBasicValidationTable();
+@@ -104,6 +108,9 @@
+         else if (WIPE_AFTER_DELETE.equals(fieldName)) {
+             retval = new BitValueAutoCompleter();
+         }
++        else if (BACKUP.equals(fieldName)) {
++            retval = new BitValueAutoCompleter();
++        }
+         return retval;
+     }
+ }

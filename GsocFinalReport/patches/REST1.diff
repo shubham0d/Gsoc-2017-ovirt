@@ -1,0 +1,35 @@
+From 42b0403c153b94445b5b77737b9e6458df282826 Mon Sep 17 00:00:00 2001
+From: Shubham Dubey <sdubey504@gmail.com>
+Date: Wed, 05 Jul 2017 17:48:15 +0530
+Subject: [PATCH] restapi: Rest API implementation for backup storage.
+
+REST request for setting backup flag on storage domain
+by passing backup true or false.This flag can be used
+while creating a domain or importing a domain.
+
+Change-Id: I3a08f6b3c9a7187a68d2925f14e7f2f28e0e8e56
+Signed-off-by: Shubham Dubey <sdubey504@gmail.com>
+---
+
+diff --git a/backend/manager/modules/restapi/types/src/main/java/org/ovirt/engine/api/restapi/types/StorageDomainMapper.java b/backend/manager/modules/restapi/types/src/main/java/org/ovirt/engine/api/restapi/types/StorageDomainMapper.java
+index 19378e5..6c4fbc2 100644
+--- a/backend/manager/modules/restapi/types/src/main/java/org/ovirt/engine/api/restapi/types/StorageDomainMapper.java
++++ b/backend/manager/modules/restapi/types/src/main/java/org/ovirt/engine/api/restapi/types/StorageDomainMapper.java
+@@ -52,6 +52,9 @@
+         if (model.isSetCriticalSpaceActionBlocker()) {
+             entity.setCriticalSpaceActionBlocker(model.getCriticalSpaceActionBlocker());
+         }
++        if (model.isSetBackup()) {
++            entity.setBackup(model.isBackup());
++        }
+         return entity;
+     }
+ 
+@@ -156,6 +159,7 @@
+         model.setDiscardAfterDelete(entity.getDiscardAfterDelete());
+         model.setSupportsDiscard(entity.getSupportsDiscard());
+         model.setSupportsDiscardZeroesData(entity.getSupportsDiscardZeroesData());
++        model.setBackup(entity.isBackup());
+         return model;
+     }
+ 
