@@ -62,6 +62,14 @@ All code submitted get merged.
 ### What left to do
 There is nothing specific left to do. We are just thinking about adding a tool that can help user to convert their export storage domain into data storage domain in future so that we can get rid of export storage domain.
 
+## Work links
+#### Wiki Pull request:
+
+  Changes | Values
+  ---------|----------
+  status | open
+  pr link | https://github.com/oVirt/ovirt-site/pull/1003
+
 #### DAL implementation:
 
   Changes | Values
@@ -75,7 +83,6 @@ There is nothing specific left to do. We are just thinking about adding a tool t
   ---------|----------
   status | merged
   gerrit code link | https://gerrit.ovirt.org/#/c/79033/
-  more info | [Backup Storage domain wiki](https://developers.google.com/open-source/gsoc/)
 
 #### Webadmin Implementation:
 
