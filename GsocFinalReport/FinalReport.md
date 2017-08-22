@@ -106,7 +106,7 @@ There is nothing specific left to do.
   status | yet to merge
   gerrit code link | https://gerrit.ovirt.org/#/c/79451/
   
- ###### You can also look at the patches diff directly here if the above link doesn't work: ![patch link](patches/)</br>
+ ###### You can also look at the patches diff directly here if the above link doesn't work: [patch link](patches/)</br>
  ######  Or you can find all my gerrit push (till now) here: [gerrit link](https://gerrit.ovirt.org/#/q/owner:"shubham+dubey+%3Csdubey504%40gmail.com%3E")
 
 ## Future Plan
