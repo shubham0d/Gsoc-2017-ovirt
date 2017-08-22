@@ -113,4 +113,4 @@ There is nothing specific left to do.
 The feature we wanted to implement is totally complete and no furture work is required in that field.
 Few extra work that can be done in this feature relation are:
 * Adding a tool that can convert export storage domain into data domain.So that user that have export storage domain in their engine can convert them into data domain before we totally get rid of export storage domain.
-* This backup feature can be a good replacement for export storage domain, so if the community agree then we will remove export storage domain from ovirt.
+* This backup feature can be a good replacement for export storage domain, so if the community agree then we can remove export storage domain from ovirt.
