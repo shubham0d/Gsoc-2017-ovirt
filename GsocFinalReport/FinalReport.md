@@ -107,7 +107,7 @@ There is nothing specific left to do.
   gerrit code link | https://gerrit.ovirt.org/#/c/79451/
   
  ###### You can also look at the patches diff directly here if the above link doesn't work: ![patch link](patches/)</br>
- ######  Or you can find all gerrit push (till now) here: ![gerrit link](https://gerrit.ovirt.org/#/q/owner:%22shubham+dubey+%253Csdubey504%2540gmail.com%253E%22)
+ ######  Or you can find all my gerrit push (till now) here: ![gerrit link](https://gerrit.ovirt.org/#/q/owner:"shubham+dubey+%3Csdubey504%40gmail.com%3E")
 
 ## Future Plan
 The feature we wanted to implement is totally complete and no furture work is required in that field.
