@@ -37,7 +37,7 @@ All code has been Implemented.
 ## Work Progress
 
 ### Wiki link
-To be updated soon
+To be updated soon once the pr get merged.
 
 ### Phases for Implementation
 
