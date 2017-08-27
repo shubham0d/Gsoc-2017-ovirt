@@ -32,7 +32,7 @@ This feature will add another functionality layer to the oVirt Disaster Recovery
 Until now, one of the solutions to backup VMs and Templates in oVirt was to use an export storage domain. Export storage domain is a dedicated storage domain which is used to store and restore VMs and Templates. The drawback of Export storage domain is its two stage process. Transferring a VM required first copying it into the export storage domain and then into other storage domain to start using them. Since in background transfer from one domain to other take place using normal copy or dd utility (in case of disks) this process take a large time for a complete transfer. Hence, for a better backup experience we decided to create a whole dedicated storage domain to be used only for backup which obviously will call as backup storage domain.
 
 ## Current status
-All code has been Implemented
+All code has been Implemented.
 
 ## Work Progress
 
@@ -57,7 +57,7 @@ To be updated soon
   * REST request for setting backup flag on storage domain by passing backup true or false.This flag can be used while creating      a domain or importing a domain.
 
 ### What code get merged
-All code submitted get merged.
+Dal implementation and REST api changes get merged. Other code like backend and webadmin are under review process and hence yet to get merged.
 
 ### What left to do
 There is nothing specific left to do.
@@ -81,14 +81,14 @@ There is nothing specific left to do.
 
   Changes | Values
   ---------|----------
-  status | merged
+  status | Yet to merge
   gerrit code link | https://gerrit.ovirt.org/#/c/79033/
 
 #### Webadmin Implementation:
 
   Changes | Values
   ---------|----------
-  status | merged
+  status | Yet to merge
   gerrit code link | https://gerrit.ovirt.org/#/c/79035/
 
 #### Rest api Requests:
@@ -103,7 +103,7 @@ There is nothing specific left to do.
 
   Changes | Values
   ---------|----------
-  status | yet to merge
+  status | Yet to merge
   gerrit code link | https://gerrit.ovirt.org/#/c/79451/
   
  ###### You can also look at the patches diff directly here if the above link doesn't work: [patch link](patches/)</br>
