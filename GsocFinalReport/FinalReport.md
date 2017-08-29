@@ -57,7 +57,7 @@ To be updated soon once the pr get merged.
   * REST request for setting backup flag on storage domain by passing backup true or false.This flag can be used while creating      a domain or importing a domain.
 
 ### What code get merged
-Most of the code like DAL implementation, backend changes and REST api part has been merged. Remaining code like webadmin and search option is under review process.
+Most of the code like DAL implementation, backend changes and REST api part is merged. Remaining code like webadmin and search option is under review process.
 
 ### What left to do
 There is nothing specific left to do.
