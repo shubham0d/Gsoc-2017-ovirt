@@ -81,7 +81,7 @@ There is nothing specific left to do.
 
   Changes | Values
   ---------|----------
-  status | merge
+  status | merged
   gerrit code link | https://gerrit.ovirt.org/#/c/79033/
 
 #### Webadmin Implementation:
